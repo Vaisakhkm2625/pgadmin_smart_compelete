@@ -14,7 +14,8 @@
     "content_scripts": [
         {
             "matches": [
-                "*://localhost:15433/*"
+                "http://localhost/*",
+                "https://localhost/*"
             ],
             "js": [
                 "content_script.js"
