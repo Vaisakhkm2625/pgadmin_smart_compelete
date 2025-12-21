@@ -1,6 +1,7 @@
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 import psycopg2
@@ -69,6 +70,14 @@ async def lifespan(app: FastAPI):
     # Shutdown logic can go here
 
 app = FastAPI(lifespan=lifespan, title="pgAdmin Smart Autocomplete API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.post("/complete", response_model=CompletionResponse)
 async def complete_query(request: CompletionRequest):
