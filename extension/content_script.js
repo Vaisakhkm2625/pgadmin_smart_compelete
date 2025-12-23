@@ -1,60 +1,98 @@
-// This is a simplified content script to demonstrate the concept.
-// pgAdmin uses CodeMirror, so a robust implementation would interact with the CodeMirror instance.
-// For this demo, we'll listen for keydown events on common editor elements.
+console.log("pgAdmin Smart Autocomplete: Script injected into " + window.location.href);
 
 let recentQueries = [];
-let debounceTimer;
 
-// Only run on the pgAdmin port
+// Only run on the pgAdmin port (optional warning, not blocking)
 if (window.location.port !== "15433") {
-    console.log("pgAdmin Autocomplete: Not on port 15433, disabling.");
-} else {
-    console.log("pgAdmin Smart Autocomplete extension loaded.");
+    console.warn(`pgAdmin Autocomplete: Port is ${window.location.port}, not the expected 15433. Continuing anyway.`);
+}
 
-    document.addEventListener('keydown', (event) => {
-        const target = event.target;
-        if (target.matches('.cm-content') || target.tagName === 'TEXTAREA') {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                const currentText = target.innerText || target.value;
-                const lines = currentText.split('\n');
-                const currentLine = lines[lines.length - 1].trim();
+console.log("pgAdmin Smart Autocomplete extension loaded.");
 
-                if (currentLine.length > 5) {
-                    provideSuggestion(currentLine, target);
-                }
-            }, 800);
-        }
-    });
-
-    async function provideSuggestion(currentLine, element) {
-        try {
-            const response = await fetch('http://localhost:8000/complete', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    recent_queries: recentQueries,
-                    current_query: currentLine
-                })
-            });
-
-            const data = await response.json();
-            if (data.suggestion) {
-                console.log("Autocomplete Suggestion:", data.suggestion);
-                // In a real implementation, we would show a custom autocomplete UI here.
-            }
-        } catch (error) {
-            console.error("Error fetching suggestion:", error);
-        }
+/**
+ * Robust way to get the current editor text and line.
+ * pgAdmin 4 uses CodeMirror.
+ */
+function getEditorContext(target) {
+    let text = "";
+    if (target.matches('.cm-content')) {
+        text = target.innerText;
+    } else if (target.tagName === 'TEXTAREA') {
+        text = target.value;
+    } else {
+        // Fallback for other potential editors
+        text = target.innerText || target.value || "";
     }
 
-    // Mocking recent queries capture for demo
-    // In real use, we'd listen for Execute button clicks
-    document.addEventListener('click', (event) => {
-        if (event.target.closest('[data-test-id="execute-button"]')) {
-            // Logic to scrape current editor content and add to recentQueries
-        }
-    });
+    const lines = text.split('\n');
+    // For CodeMirror, target.innerText might include a lot of stuff, 
+    // but the last line current cursor is on is usually what we want.
+    // However, a perfect implementation would use CodeMirror API.
+    return lines[lines.length - 1].trim();
 }
+
+// Use window.addEventListener with capture: true to ensure we catch events in iframes
+window.addEventListener('keydown', (event) => {
+    // This log should trigger for every key you press in the editor
+    console.log("pgAdmin Autocomplete: Keydown detected in frame:", window.location.href, "Target:", event.target);
+
+    // Check for Ctrl + Space (or Cmd + Space on Mac)
+    if ((event.ctrlKey || event.metaKey) && (event.code === 'Space' || event.key === ' ')) {
+        console.log("pgAdmin Autocomplete: Ctrl+Space detected!");
+
+        // We trigger if it's an editor OR if we can't be sure (broadening the match)
+        const target = event.target;
+        const isEditor = target.matches('.cm-content') ||
+            target.tagName === 'TEXTAREA' ||
+            target.classList.contains('cm-text') ||
+            target.closest('.cm-editor');
+
+        if (isEditor) {
+            console.log("pgAdmin Autocomplete: Target matched as editor. Fetching suggestion...");
+            event.preventDefault();
+            event.stopPropagation();
+
+            const currentLine = getEditorContext(target);
+            console.log(`pgAdmin Autocomplete: Current line: "${currentLine}"`);
+
+            provideSuggestion(currentLine, target);
+        } else {
+            console.warn("pgAdmin Autocomplete: Ctrl+Space ignored because target is not an editor.");
+        }
+    }
+}, { capture: true });
+
+async function provideSuggestion(currentLine, element) {
+    try {
+        console.log("pgAdmin Autocomplete: Sending request to 127.0.0.1:8000...");
+        const response = await fetch('http://127.0.0.1:8000/complete', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                recent_queries: recentQueries,
+                current_query: currentLine
+            })
+        });
+
+        if (!response.ok) {
+            console.error("pgAdmin Autocomplete: Server error response:", response.status);
+            return;
+        }
+
+        const data = await response.json();
+        console.log("pgAdmin Autocomplete suggestion received:", data.suggestion);
+        alert("Smart Suggestion: " + data.suggestion); // Visual feedback for now
+    } catch (error) {
+        console.error("pgAdmin Autocomplete: Fetch Error:", error);
+        console.log("Check if your FastAPI server is running at http://127.0.0.1:8000");
+    }
+}
+
+// Mocking recent queries capture
+document.addEventListener('click', (event) => {
+    if (event.target.closest('[data-test-id="execute-button"]')) {
+        console.log("pgAdmin Autocomplete: Execute button clicked. Ready for query capture.");
+    }
+});

@@ -56,6 +56,7 @@ def search_similar_queries(query_text: str, limit: int = 3):
         """, (embedding, limit))
         
         results = [row[0] for row in cur.fetchall()]
+        print(results)
         cur.close()
         conn.close()
         return results
@@ -90,6 +91,7 @@ async def complete_query(request: CompletionRequest):
     # 2. Prepare prompt for LLM
     context_history = "\n".join([f"- {q}" for q in request.recent_queries[-3:]])
     similar_context = "\n".join([f"- {q}" for q in similar_queries])
+
     
     prompt = f"""
 You are a SQL autocomplete assistant for pgAdmin.
@@ -111,6 +113,7 @@ If you cannot predict with confidence, return an empty string.
 """
 
     try:
+        print(prompt)
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[

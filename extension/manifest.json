@@ -15,11 +15,14 @@
         {
             "matches": [
                 "http://localhost/*",
-                "https://localhost/*"
+                "https://localhost/*",
+                "http://127.0.0.1/*",
+                "https://127.0.0.1/*"
             ],
             "js": [
                 "content_script.js"
-            ]
+            ],
+            "all_frames": true
         }
     ]
 }
