@@ -18,6 +18,8 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
+import json
+
 def get_pgadmin_history():
     if not os.path.exists(PGADMIN_DB_PATH):
         print(f"pgAdmin database not found at {PGADMIN_DB_PATH}")
@@ -26,11 +28,24 @@ def get_pgadmin_history():
     try:
         conn = sqlite3.connect(PGADMIN_DB_PATH)
         cur = conn.cursor()
-        # In pgAdmin4, query history is often in the 'query_history' table
-        # We'll fetch the query text. Adjust column names if needed based on version.
-        cur.execute("SELECT query FROM query_history WHERE query IS NOT NULL AND query != '';")
+        cur.execute("SELECT query_info FROM query_history WHERE query_info IS NOT NULL AND query_info != '';")
         rows = cur.fetchall()
-        queries = list(set([row[0] for row in rows])) # Deduplicate
+        
+        queries = []
+        for row in rows:
+            data_str = row[0]
+            try:
+                # Try to parse as JSON
+                data = json.loads(data_str)
+                if isinstance(data, dict) and "query" in data:
+                    queries.append(data["query"])
+                else:
+                    queries.append(data_str)
+            except json.JSONDecodeError:
+                # If not JSON, use the raw string
+                queries.append(data_str)
+        
+        queries = list(set([q for q in queries if q.strip()])) # Deduplicate and clean
         conn.close()
         return queries
     except Exception as e:
