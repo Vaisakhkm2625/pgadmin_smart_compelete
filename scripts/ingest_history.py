@@ -29,16 +29,21 @@ def get_pgadmin_history():
         conn = sqlite3.connect(PGADMIN_DB_PATH)
         cur = conn.cursor()
         cur.execute("SELECT query_info FROM query_history WHERE query_info IS NOT NULL AND query_info != '';")
+        #cur.execute("SELECT * FROM query_history WHERE query_info IS NOT NULL AND query_info != '';")
         rows = cur.fetchall()
         
         queries = []
+        print(queries)
         for row in rows:
             data_str = row[0]
             try:
                 # Try to parse as JSON
-                data = json.loads(data_str)
+                json_str = bytes.fromhex(data_str).decode('utf-8')
+                data = json.loads(json_str)
                 if isinstance(data, dict) and "query" in data:
                     queries.append(data["query"])
+                    print(data)
+                    print(data["query"])
                 else:
                     queries.append(data_str)
             except json.JSONDecodeError:
@@ -68,6 +73,7 @@ def store_embeddings(queries):
         cur = conn.cursor()
 
         for query in queries:
+            print(queries)
             print(f"Processing query: {query[:50]}...")
             embedding = get_embedding(query)
             
