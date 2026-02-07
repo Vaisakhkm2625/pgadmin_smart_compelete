@@ -91,7 +91,6 @@ async def complete_query(request: CompletionRequest):
     # 2. Prepare prompt for LLM
     context_history = "\n".join([f"- {q}" for q in request.recent_queries[-3:]])
     similar_context = "\n".join([f"- {q}" for q in similar_queries])
-
     
     prompt = f"""
 You are a SQL autocomplete assistant for pgAdmin.
