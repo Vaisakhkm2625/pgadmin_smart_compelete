@@ -24,16 +24,34 @@ function getEditorContext(target) {
 }
 
 /**
+ * Gets the coordinates of the caret (cursor) position.
+ */
+function getCaretCoordinates() {
+    let x = 0;
+    let y = 0;
+    const selection = window.getSelection();
+    if (selection.rangeCount !== 0) {
+        const range = selection.getRangeAt(0).cloneRange();
+        range.collapse(true);
+        const rects = range.getClientRects();
+        if (rects.length > 0) {
+            const rect = rects[0];
+            x = rect.left;
+            y = rect.top;
+        }
+    }
+    return { x, y };
+}
+
+/**
  * Creates or updates the suggestion UI.
  */
-function showSuggestionUI(suggestion, target) {
+function showSuggestionUI(suggestion, x, y) {
     if (!suggestionOverlay) {
         suggestionOverlay = document.createElement('div');
         suggestionOverlay.id = 'pgadmin-smart-autocomplete-overlay';
-        suggestionOverlay.style = `
+        suggestionOverlay.style.cssText = `
             position: fixed;
-            bottom: 24px;
-            right: 24px;
             background: #2c3e50;
             color: #ecf0f1;
             padding: 12px 16px;
@@ -58,6 +76,14 @@ function showSuggestionUI(suggestion, target) {
         <div style="font-weight: 500;">${suggestion}</div>
         <div style="font-size: 10px; color: #95a5a6; margin-top: 4px;">Press <span style="background: #34495e; padding: 1px 4px; border-radius: 3px;">Tab</span> to accept</div>
     `;
+
+    // Position the overlay near the cursor
+    // Add some offset so it doesn't cover the text
+    const top = y + 20;
+    const left = x;
+
+    suggestionOverlay.style.top = `${top}px`;
+    suggestionOverlay.style.left = `${left}px`;
     suggestionOverlay.style.opacity = '1';
 }
 
@@ -115,7 +141,8 @@ window.addEventListener('keydown', (event) => {
             event.stopPropagation();
 
             const currentLine = getEditorContext(target);
-            provideSuggestion(currentLine, target);
+            const { x, y } = getCaretCoordinates();
+            provideSuggestion(currentLine, target, x, y);
         }
     } else if (!event.ctrlKey && !event.metaKey && event.key.length === 1) {
         // Hide overlay if user continues typing normally
@@ -123,7 +150,7 @@ window.addEventListener('keydown', (event) => {
     }
 }, { capture: true });
 
-async function provideSuggestion(currentLine, element) {
+async function provideSuggestion(currentLine, element, x, y) {
     try {
         console.log("pgAdmin Autocomplete: Requesting suggestion...");
         const response = await fetch('http://127.0.0.1:8000/complete', {
@@ -145,7 +172,7 @@ async function provideSuggestion(currentLine, element) {
         const data = await response.json();
         if (data.suggestion && data.suggestion.trim().length > 0) {
             console.log("pgAdmin Autocomplete: Suggestion received.");
-            showSuggestionUI(data.suggestion, element);
+            showSuggestionUI(data.suggestion, x, y);
         } else {
             console.log("pgAdmin Autocomplete: No suggestion returned from API.");
             hideSuggestionUI();
