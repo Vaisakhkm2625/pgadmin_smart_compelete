@@ -5,6 +5,26 @@ let currentSuggestion = "";
 let suggestionOverlay = null;
 
 console.log("pgAdmin Smart Autocomplete extension loaded.");
+/**
+ * Extracts recent queries from the editor text.
+ * Splits by semicolons and returns the last few completed queries.
+ */
+function extractRecentQueries(target) {
+    let text = "";
+    if (target.matches('.cm-content')) {
+        text = target.innerText;
+    } else if (target.tagName === 'TEXTAREA') {
+        text = target.value;
+    } else {
+        text = target.innerText || target.value || "";
+    }
+
+    // Split by semicolon to get individual queries
+    const queries = text.split(';').map(q => q.trim()).filter(q => q.length > 0);
+    
+    // Return last 5 queries (excluding the current incomplete one)
+    return queries.slice(Math.max(0, queries.length - 5), -1);
+}
 
 /**
  * Robust way to get the current editor text and line.
@@ -141,6 +161,7 @@ window.addEventListener('keydown', (event) => {
             event.stopPropagation();
 
             const currentLine = getEditorContext(target);
+            recentQueries = extractRecentQueries(target);
             const { x, y } = getCaretCoordinates();
             provideSuggestion(currentLine, target, x, y);
         }
