@@ -207,12 +207,30 @@ function extractGridData() {
     }
 }
 
+/**
+ * Extracts previous query status from the Messages tab.
+ */
+function extractQueryStatus() {
+    try {
+        const messagesElement = document.querySelector('#id-messages');
+        if (messagesElement) {
+            return messagesElement.innerText.trim();
+        }
+        return null;
+    } catch (e) {
+        console.error("pgAdmin Autocomplete: Error extracting query status", e);
+        return null;
+    }
+}
+
 async function provideSuggestion(currentLine, element, x, y) {
     try {
         console.log("pgAdmin Autocomplete: Requesting suggestion...");
 
         // Extract visible data from the Data Output grid (if available)
         const previousOutput = extractGridData();
+        // Extract status from Messages tab
+        const previousStatus = extractQueryStatus();
 
         const response = await fetch('http://127.0.0.1:8000/complete', {
             method: 'POST',
@@ -222,7 +240,8 @@ async function provideSuggestion(currentLine, element, x, y) {
             body: JSON.stringify({
                 recent_queries: recentQueries,
                 current_query: currentLine,
-                previous_output: previousOutput
+                previous_output: previousOutput,
+                previous_status: previousStatus
             })
         });
 

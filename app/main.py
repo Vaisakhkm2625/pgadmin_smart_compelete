@@ -24,6 +24,7 @@ class CompletionRequest(BaseModel):
     recent_queries: List[str]
     current_query: str
     previous_output: Optional[str] = None
+    previous_status: Optional[str] = None
 
 class CompletionResponse(BaseModel):
     suggestion: str
@@ -105,6 +106,9 @@ Similar Past Queries:
 
 Previous Query Output (Visible Data):
 {request.previous_output or "No output available"}
+
+Previous Query Status (Messages):
+{request.previous_status or "No status available"}
 
 Current Partial Query:
 {request.current_query}
