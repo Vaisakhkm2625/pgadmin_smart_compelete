@@ -383,11 +383,14 @@ async function handleInstructionSubmit() {
 
             // Re-find the target in case it changed
             contextTarget = document.querySelector('.cm-content') || document.querySelector('.CodeMirror textarea');
+            console.log(contextTarget)
 
             if (contextTarget) {
                 contextTarget.focus();
                 // Ensure we insert neatly
-                insertText(data.suggestion);
+                //insertText(data.suggestion);
+
+                document.querySelectorAll("iframe")[0].contentDocument.execCommand('insertText', false, data.suggestion);
             } else {
                 console.warn("pgAdmin AI: Could not find editor to insert SQL.");
                 alert("Generated SQL (Editor not found):\n" + data.suggestion);
