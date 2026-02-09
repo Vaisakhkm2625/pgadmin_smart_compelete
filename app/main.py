@@ -120,7 +120,7 @@ If you cannot predict with confidence, return an empty string.
 """
 
     try:
-        print(prompt)
+        # print(prompt)
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -133,6 +133,76 @@ If you cannot predict with confidence, return an empty string.
         
         suggestion = response.choices[0].message.content.strip()
         return CompletionResponse(suggestion=suggestion)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class InstructionRequest(CompletionRequest):
+    instruction: str
+
+@app.post("/instruct", response_model=CompletionResponse)
+async def instruct_query(request: InstructionRequest):
+    if not OPENAI_API_KEY:
+        raise HTTPException(status_code=500, detail="OpenAI API Key not configured")
+
+    # 1. Search for similar queries based on the *instruction* or current query context
+    # We can use the instruction itself for semantic search if we had instruction embeddings, 
+    # but for now let's use the current query context as usual.
+    similar_queries = search_similar_queries(request.current_query)
+    
+    # 2. Prepare prompt for LLM
+    context_history = "\n".join([f"- {q}" for q in request.recent_queries[-3:]])
+    similar_context = "\n".join([f"- {q}" for q in similar_queries])
+    
+    prompt = f"""
+You are an expert SQL assistant for pgAdmin.
+Your task is to generate a SQL query based on the user's natural language INSTRUCTION.
+
+User's Recent Queries:
+{context_history}
+
+Similar Past Queries:
+{similar_context}
+
+Previous Query Output (Visible Data):
+{request.previous_output or "No output available"}
+
+Previous Query Status (Messages):
+{request.previous_status or "No status available"}
+
+Current Editor Content (Context):
+{request.current_query}
+
+User Instruction:
+{request.instruction}
+
+Instruction: 
+Return ONLY the SQL code that satisfies the instruction. 
+If the instruction implies modifying the current query, return the modified query or the part to append.
+You can include brief comments (starting with --) to explain complex logic or provide additional instructions.
+Do not include markdown formatting (like ```sql).
+"""
+
+    try:
+        print(prompt)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a helpful SQL assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0,
+            max_tokens=300
+        )
+        
+        suggestion = response.choices[0].message.content.strip()
+        # Remove markdown code blocks if present
+        if suggestion.startswith("```"):
+            suggestion = suggestion.split("\n", 1)[1]
+            if suggestion.endswith("```"):
+                suggestion = suggestion[:-3]
+        
+        return CompletionResponse(suggestion=suggestion.strip())
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

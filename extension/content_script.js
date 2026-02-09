@@ -265,3 +265,143 @@ async function provideSuggestion(currentLine, element, x, y) {
 
 // Global cleanup
 document.addEventListener('click', hideSuggestionUI);
+
+// --- Floating Instruction Panel ---
+
+function createFloatingPanel() {
+    const panel = document.createElement('div');
+    panel.id = 'pgadmin-smart-instruction-panel';
+    panel.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 300px;
+        background: #2c3e50;
+        color: #ecf0f1;
+        padding: 12px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        z-index: 99999;
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        border: 1px solid #34495e;
+    `;
+
+    panel.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 12px; font-weight: 600; color: #3498db;">AI Assistant</span>
+            <button id="close-ai-panel" style="background: none; border: none; color: #95a5a6; cursor: pointer; font-size: 14px;">&times;</button>
+        </div>
+        <textarea id="ai-instruction-input" placeholder="Ask AI to generate SQL..." style="
+            width: 100%; 
+            height: 60px; 
+            background: #34495e; 
+            border: none; 
+            border-radius: 4px; 
+            color: white; 
+            padding: 8px; 
+            font-size: 12px; 
+            resize: none;
+            outline: none;
+        "></textarea>
+        <button id="ai-generate-btn" style="
+            background: #3498db; 
+            color: white; 
+            border: none; 
+            padding: 6px 12px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 12px; 
+            font-weight: 500;
+            align-self: flex-end;
+        ">Generate</button>
+    `;
+
+    document.body.appendChild(panel);
+
+    // Event Listeners
+    document.getElementById('close-ai-panel').onclick = () => panel.remove();
+    document.getElementById('ai-generate-btn').onclick = handleInstructionSubmit;
+
+    // Allow Ctrl+Enter to submit
+    document.getElementById('ai-instruction-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            handleInstructionSubmit();
+        }
+    });
+}
+
+async function handleInstructionSubmit() {
+    const input = document.getElementById('ai-instruction-input');
+    const btn = document.getElementById('ai-generate-btn');
+    const instruction = input.value.trim();
+
+    if (!instruction) return;
+
+    btn.innerText = "Generating...";
+    btn.disabled = true;
+
+    try {
+        // Find the editor context
+        // pgAdmin uses CodeMirror, usually with class .cm-content
+        let contextTarget = document.querySelector('.cm-content') || document.querySelector('.CodeMirror textarea');
+
+        let currentLine = "";
+
+        if (contextTarget) {
+            currentLine = getEditorContext(contextTarget);
+        }
+
+        const previousOutput = extractGridData();
+        const previousStatus = extractQueryStatus();
+
+        const response = await fetch('http://127.0.0.1:8000/instruct', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                recent_queries: recentQueries,
+                current_query: currentLine,
+                previous_output: previousOutput,
+                previous_status: previousStatus,
+                instruction: instruction
+            })
+        });
+
+        if (!response.ok) {
+            console.error("pgAdmin AI: Server error:", response.status);
+            btn.innerText = "Error";
+            return;
+        }
+
+        const data = await response.json();
+        if (data.suggestion) {
+            console.log("pgAdmin AI: SQL Generated.");
+
+            // Re-find the target in case it changed
+            contextTarget = document.querySelector('.cm-content') || document.querySelector('.CodeMirror textarea');
+
+            if (contextTarget) {
+                contextTarget.focus();
+                // Ensure we insert neatly
+                insertText(data.suggestion);
+            } else {
+                console.warn("pgAdmin AI: Could not find editor to insert SQL.");
+                alert("Generated SQL (Editor not found):\n" + data.suggestion);
+            }
+        }
+    } catch (error) {
+        console.error("pgAdmin AI: Fetch Error:", error);
+        btn.innerText = "Error";
+    } finally {
+        btn.innerText = "Generate";
+        btn.disabled = false;
+    }
+}
+
+// Initial check to spawn the panel (or spawn on a shortcut/event)
+// For now, let's spawn it automatically when the script loads
+setTimeout(createFloatingPanel, 2000);
