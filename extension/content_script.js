@@ -174,12 +174,14 @@ window.addEventListener('keydown', (event) => {
 /**
  * Extracts visible data from the Data Output panel (User Provided Logic).
  */
-function extractGridData() {
+function extractGridData(doc) {
+    const targetDoc = doc || document;
     try {
         const gridRows = Array.from(
-            document.querySelectorAll('#id-dataoutput [role="grid"] [role="row"]')
+            targetDoc.querySelectorAll('#id-dataoutput [role="grid"] [role="row"]')
         );
 
+        console.log(gridRows)
         if (gridRows.length === 0) return null;
 
         let output = "Visible Data Sample:\n";
@@ -210,9 +212,10 @@ function extractGridData() {
 /**
  * Extracts previous query status from the Messages tab.
  */
-function extractQueryStatus() {
+function extractQueryStatus(doc) {
+    const targetDoc = doc || document;
     try {
-        const messagesElement = document.querySelector('#id-messages');
+        const messagesElement = targetDoc.querySelector('#id-messages');
         if (messagesElement) {
             return messagesElement.innerText.trim();
         }
@@ -290,7 +293,7 @@ function createFloatingPanel() {
     `;
 
     panel.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div id="pgadmin-smart-panel-header" style="display: flex; justify-content: space-between; align-items: center; cursor: move; user-select: none;">
             <span style="font-size: 12px; font-weight: 600; color: #3498db;">AI Assistant</span>
             <button id="close-ai-panel" style="background: none; border: none; color: #95a5a6; cursor: pointer; font-size: 14px;">&times;</button>
         </div>
@@ -331,6 +334,44 @@ function createFloatingPanel() {
             handleInstructionSubmit();
         }
     });
+
+    // Drag Logic
+    const header = document.getElementById('pgadmin-smart-panel-header');
+    let isDragging = false;
+    let startX, startY, initialLeft, initialTop;
+
+    header.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+
+        const rect = panel.getBoundingClientRect();
+        initialLeft = rect.left;
+        initialTop = rect.top;
+
+        // Remove bottom/right positioning to allow unrestricted movement via top/left
+        panel.style.bottom = 'auto';
+        panel.style.right = 'auto';
+        panel.style.left = `${initialLeft}px`;
+        panel.style.top = `${initialTop}px`;
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    });
+
+    function onMouseMove(e) {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        panel.style.left = `${initialLeft + dx}px`;
+        panel.style.top = `${initialTop + dy}px`;
+    }
+
+    function onMouseUp() {
+        isDragging = false;
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+    }
 }
 
 async function handleInstructionSubmit() {
@@ -354,8 +395,15 @@ async function handleInstructionSubmit() {
             currentLine = getEditorContext(contextTarget);
         }
 
-        const previousOutput = extractGridData();
-        const previousStatus = extractQueryStatus();
+        // Get the iframe document
+        let targetDoc = document;
+        const iframes = document.querySelectorAll("iframe");
+        if (iframes.length > 0) {
+            targetDoc = iframes[0].contentDocument || document;
+        }
+
+        const previousOutput = extractGridData(targetDoc);
+        const previousStatus = extractQueryStatus(targetDoc);
 
         const response = await fetch('http://127.0.0.1:8000/instruct', {
             method: 'POST',
@@ -390,7 +438,7 @@ async function handleInstructionSubmit() {
                 // Ensure we insert neatly
                 //insertText(data.suggestion);
 
-                document.querySelectorAll("iframe")[0].contentDocument.execCommand('insertText', false, data.suggestion);
+                targetDoc.execCommand('insertText', false, data.suggestion);
             } else {
                 console.warn("pgAdmin AI: Could not find editor to insert SQL.");
                 alert("Generated SQL (Editor not found):\n" + data.suggestion);
