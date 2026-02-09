@@ -23,6 +23,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 class CompletionRequest(BaseModel):
     recent_queries: List[str]
     current_query: str
+    previous_output: Optional[str] = None
 
 class CompletionResponse(BaseModel):
     suggestion: str
@@ -94,13 +95,16 @@ async def complete_query(request: CompletionRequest):
     
     prompt = f"""
 You are a SQL autocomplete assistant for pgAdmin.
-Based on the user's recent activity and similar past queries, predict the completion for the current partial query.
+Based on the user's recent activity, previous query results, and similar past queries, predict the completion for the current partial query.
 
 User's Recent Queries:
 {context_history}
 
 Similar Past Queries:
 {similar_context}
+
+Previous Query Output (Visible Data):
+{request.previous_output or "No output available"}
 
 Current Partial Query:
 {request.current_query}

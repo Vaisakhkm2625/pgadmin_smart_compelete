@@ -21,7 +21,7 @@ function extractRecentQueries(target) {
 
     // Split by semicolon to get individual queries
     const queries = text.split(';').map(q => q.trim()).filter(q => q.length > 0);
-    
+
     // Return last 5 queries (excluding the current incomplete one)
     return queries.slice(Math.max(0, queries.length - 5), -1);
 }
@@ -171,9 +171,49 @@ window.addEventListener('keydown', (event) => {
     }
 }, { capture: true });
 
+/**
+ * Extracts visible data from the Data Output panel (User Provided Logic).
+ */
+function extractGridData() {
+    try {
+        const gridRows = Array.from(
+            document.querySelectorAll('#id-dataoutput [role="grid"] [role="row"]')
+        );
+
+        if (gridRows.length === 0) return null;
+
+        let output = "Visible Data Sample:\n";
+
+        // Limit to first 20 rows
+        const visibleRows = gridRows.slice(0, 20);
+
+        visibleRows.forEach(row => {
+            const cells = Array.from(
+                row.querySelectorAll('[role="columnheader"],[role="gridcell"]'),
+                cell => cell.textContent.trim()
+            );
+
+            const rowData = cells.join(" | ");
+            if (rowData) {
+                output += rowData + "\n";
+            }
+        });
+        console.log(output)
+
+        return output.trim();
+    } catch (e) {
+        console.error("pgAdmin Autocomplete: Error extracting grid data", e);
+        return null;
+    }
+}
+
 async function provideSuggestion(currentLine, element, x, y) {
     try {
         console.log("pgAdmin Autocomplete: Requesting suggestion...");
+
+        // Extract visible data from the Data Output grid (if available)
+        const previousOutput = extractGridData();
+
         const response = await fetch('http://127.0.0.1:8000/complete', {
             method: 'POST',
             headers: {
@@ -181,7 +221,8 @@ async function provideSuggestion(currentLine, element, x, y) {
             },
             body: JSON.stringify({
                 recent_queries: recentQueries,
-                current_query: currentLine
+                current_query: currentLine,
+                previous_output: previousOutput
             })
         });
 
