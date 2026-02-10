@@ -405,6 +405,8 @@ async function handleInstructionSubmit() {
         const previousOutput = extractGridData(targetDoc);
         const previousStatus = extractQueryStatus(targetDoc);
 
+        const recentQueries = extractRecentQueries(contextTarget);
+
         const response = await fetch('http://127.0.0.1:8000/instruct', {
             method: 'POST',
             headers: {
